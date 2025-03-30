@@ -67,11 +67,12 @@ def validate_many_models(model: Type[BaseModel], content: Any) -> List[BaseModel
         raise ManyModelValidationError(ve.errors())
 
 
-def validate_path_params(func: Callable, kwargs: dict) -> Tuple[dict, list]:
+def validate_path_params(func: Callable, kwargs: dict, exclude_paths: list[str] = []) -> Tuple[dict, list]:
     errors = []
     validated = {}
+    excluded = set(exclude_paths+["query", "body", "form", "return"])
     for name, type_ in func.__annotations__.items():
-        if name in {"query", "body", "form", "return"}:
+        if name in excluded:
             continue
         try:
             adapter = TypeAdapter(type_)
@@ -101,6 +102,7 @@ def validate(
     response_by_alias: bool = False,
     get_json_params: Optional[dict] = None,
     form: Optional[Type[BaseModel]] = None,
+    exclude_paths: list[str] = []
 ):
     """
     Decorator for route methods which will validate query, body and form parameters
@@ -122,6 +124,7 @@ def validate(
         (request.body_params then contains list of models i. e. List[BaseModel])
     `response_by_alias` whether Pydantic's alias is used
     `get_json_params` - parameters to be passed to Request.get_json() function
+    `exclude_paths` - List of items that should be exluded when validating path parameters
 
     example::
 
@@ -166,7 +169,7 @@ def validate(
         @wraps(func)
         def wrapper(*args, **kwargs):
             q, b, f, err = None, None, None, {}
-            kwargs, path_err = validate_path_params(func, kwargs)
+            kwargs, path_err = validate_path_params(func, kwargs, exclude_paths)
             if path_err:
                 err["path_params"] = path_err
             query_in_kwargs = func.__annotations__.get("query")
